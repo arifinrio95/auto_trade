@@ -76,7 +76,7 @@ export default async function handler(req, res) {
                 success: true,
                 data: {
                     isRunning: state.isRunning,
-                    lastCheck: state.updatedAt,
+                    lastCheck: latestLog?.time || state.updatedAt,
                     logs,
                     stats,
                     lastDecision: latestLog?.data,
