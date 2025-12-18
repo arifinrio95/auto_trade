@@ -11,7 +11,7 @@ export default async function handler(req, res) {
             // Get auto-trading status from DB
             const state = await prisma.botState.findUnique({
                 where: { id: 'global' },
-            }) || { isRunning: false, symbol: 'BTCUSDT' };
+            }) || { isRunning: false, symbol: 'BTCUSDT', updatedAt: new Date() };
 
             const latestLog = await prisma.analysisLog.findFirst({
                 where: { type: 'decision' },

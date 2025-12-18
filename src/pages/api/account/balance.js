@@ -35,10 +35,15 @@ export default async function handler(req, res) {
             },
         });
     } catch (error) {
-        console.error('Account error:', error);
+        console.error('Account balance fetch error:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to fetch account data',
+            details: 'Check your API keys and connection'
         });
     }
 }

@@ -61,10 +61,15 @@ export default async function handler(req, res) {
             },
         });
     } catch (error) {
-        console.error('Analysis error:', error);
+        console.error('Market analysis error:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to analyze market',
+            details: 'Check Binance connectivity or AI configuration'
         });
     }
 }
