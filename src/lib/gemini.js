@@ -1,7 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from "@google/genai";
 
-let genAI = null;
-let model = null;
+let ai = null;
 
 export function initializeGemini(apiKey) {
     if (!apiKey || apiKey === 'your_gemini_api_key_here') {
@@ -9,18 +8,21 @@ export function initializeGemini(apiKey) {
         return false;
     }
 
-    genAI = new GoogleGenerativeAI(apiKey);
-    // Using the latest gemini-3-flash-preview model
-    model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
-    console.log('Gemini AI Initialized with model: gemini-3-flash-preview');
-    return true;
+    try {
+        ai = new GoogleGenAI({ apiKey });
+        console.log('Gemini AI Initialized with @google/genai and model: gemini-3-flash-preview');
+        return true;
+    } catch (error) {
+        console.error('Failed to initialize GoogleGenAI:', error);
+        return false;
+    }
 }
 
 /**
  * Generate trading decision using Gemini AI
  */
 export async function generateTradingDecision(marketData, indicators, recentCandles) {
-    if (!model) {
+    if (!ai) {
         // Return mock decision if Gemini not configured
         return generateMockDecision(indicators);
     }
@@ -70,9 +72,11 @@ Based on the above data, provide a trading decision. Consider:
 }`;
 
     try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        let text = response.text();
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt
+        });
+        let text = response.text;
 
         // Clean up the response - remove markdown code blocks if present
         text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -95,7 +99,7 @@ Based on the above data, provide a trading decision. Consider:
  * This is used for the automated trading loop
  */
 export async function generateAutoTradingDecision(marketData, indicators, recentCandles, openPositions, tradeHistory) {
-    if (!model) {
+    if (!ai) {
         return generateMockAutoDecision(indicators, openPositions);
     }
 
@@ -175,9 +179,11 @@ Rules:
 }`;
 
     try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        let text = response.text();
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt
+        });
+        let text = response.text;
 
         text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
@@ -256,6 +262,7 @@ function generateMockAutoDecision(indicators, openPositions) {
 
     const positionActions = openPositions.map((p, i) => ({
         positionId: i + 1,
+        asset: p.asset || 'BTC',
         action: 'HOLD',
         reason: 'Maintaining position based on current market conditions',
     }));
@@ -298,7 +305,7 @@ function generateMockAutoDecision(indicators, openPositions) {
  * Get market sentiment analysis
  */
 export async function analyzeMarketSentiment(symbol, recentNews = []) {
-    if (!model) {
+    if (!ai) {
         return {
             sentiment: 'neutral',
             score: 0.5,
@@ -317,9 +324,11 @@ Respond ONLY with valid JSON:
 }`;
 
     try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        let text = response.text();
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt
+        });
+        let text = response.text;
         text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         return JSON.parse(text);
     } catch (error) {
