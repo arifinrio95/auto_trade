@@ -48,17 +48,23 @@ export default async function handler(req, res) {
         // 3. Fetch final history from DB (Source of Truth)
         const dbTrades = await prisma.trade.findMany({
             where: { symbol },
-            orderBy: { time: 'desc' },
-            take: 100
+            orderBy: { time: 'asc' }, // Get all for PnL calculation in order
         });
 
-        // 4. Format for UI
-        const formattedTrades = dbTrades.map(trade => ({
-            ...trade,
-            id: trade.id,
-            time: trade.time.toISOString(),
-            timestamp: trade.time.getTime()
-        }));
+        // 4. Calculate PnL and Statuses
+        const { calculateRealizedPnL } = require('../../../lib/trading_utils');
+        const tradesWithPnL = calculateRealizedPnL(dbTrades);
+
+        // 5. Format for UI (return latest first)
+        const formattedTrades = tradesWithPnL
+            .sort((a, b) => new Date(b.time) - new Date(a.time))
+            .slice(0, 100)
+            .map(trade => ({
+                ...trade,
+                id: trade.id,
+                time: trade.time instanceof Date ? trade.time.toISOString() : trade.time,
+                timestamp: new Date(trade.time).getTime()
+            }));
 
         res.status(200).json({
             success: true,

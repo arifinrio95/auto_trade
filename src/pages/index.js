@@ -8,6 +8,7 @@ import BalanceCard from '@/components/BalanceCard';
 import StatsPanel from '@/components/StatsPanel';
 import Notification from '@/components/Notification';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
+import AnalysisHistory from '@/components/AnalysisHistory';
 
 export default function Home() {
     // State
@@ -21,6 +22,7 @@ export default function Home() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [notification, setNotification] = useState(null);
     const [activeTab, setActiveTab] = useState('manual'); // 'manual' or 'auto'
+    const [logs, setLogs] = useState([]);
     const [stats, setStats] = useState({
         totalPnL: 0,
         winRate: 0,
@@ -157,6 +159,7 @@ export default function Home() {
                     totalTrades: data.data.stats.tradesExecuted,
                 });
                 setDecision(data.data.lastDecision);
+                setLogs(data.data.logs || []);
             }
         } catch (error) {
             console.error('Failed to fetch auto-trading status:', error);
@@ -250,6 +253,7 @@ export default function Home() {
 
                         {/* Trading Panels */}
                         <div className="space-y-8">
+                            <AnalysisHistory logs={logs} />
                             {/* Auto Pilot */}
                             <AutoTradingPanel
                                 symbol={symbol}

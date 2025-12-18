@@ -31,8 +31,8 @@ export default function TradeHistory({ trades }) {
                             <th className="pb-3 font-medium">Side</th>
                             <th className="pb-3 font-medium text-right">Price</th>
                             <th className="pb-3 font-medium text-right">Qty</th>
-                            <th className="pb-3 font-medium text-right">Total</th>
-                            <th className="pb-3 font-medium text-right pr-2">Fee</th>
+                            <th className="pb-3 font-medium text-right">PnL</th>
+                            <th className="pb-3 font-medium text-right pr-2">Status</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -48,16 +48,18 @@ export default function TradeHistory({ trades }) {
                                     </span>
                                 </td>
                                 <td className="py-3 text-right font-medium text-gray-900 font-mono">
-                                    ${parseFloat(trade.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    ${parseFloat(trade.price).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                                 </td>
                                 <td className="py-3 text-right text-gray-600 font-mono">
-                                    {parseFloat(trade.quantity).toFixed(4)}
+                                    {parseFloat(trade.quantity)}
                                 </td>
-                                <td className="py-3 text-right font-medium text-gray-900 font-mono">
-                                    ${parseFloat(trade.quoteQty).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                <td className={`py-3 text-right font-bold font-mono ${trade.pnl > 0 ? 'text-green-600' : trade.pnl < 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                                    {trade.pnl !== null ? `${trade.pnl > 0 ? '+' : ''}${parseFloat(trade.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                                 </td>
-                                <td className="py-3 pr-2 text-right text-xs text-gray-400 font-mono">
-                                    {parseFloat(trade.commission).toFixed(6)}
+                                <td className="py-3 pr-2 text-right">
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${trade.status === 'EXIT' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                        {trade.status}
+                                    </span>
                                 </td>
                             </tr>
                         ))}
