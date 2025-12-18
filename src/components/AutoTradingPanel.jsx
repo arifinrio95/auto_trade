@@ -66,7 +66,7 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
 
             if (data.success) {
                 setIsRunning(true);
-                setAutoState(data.data);
+                if (data.data) setAutoState(data.data);
                 setCountdown(CHECK_INTERVAL / 1000);
 
                 // Perform initial check
@@ -103,7 +103,7 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
 
             if (data.success) {
                 setIsRunning(false);
-                setAutoState(data.data);
+                if (data.data) setAutoState(data.data);
 
                 // Clear intervals
                 if (intervalRef.current) clearInterval(intervalRef.current);
