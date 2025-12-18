@@ -5,6 +5,12 @@ const TESTNET_WS_URL = 'wss://testnet.binance.vision/ws';
 
 export class BinanceClient {
     constructor(apiKey, secretKey) {
+        if (!apiKey || !secretKey) {
+            console.error('BinanceClient Error: API Key or Secret Key is missing!', {
+                hasApiKey: !!apiKey,
+                hasSecretKey: !!secretKey
+            });
+        }
         this.apiKey = apiKey;
         this.secretKey = secretKey;
         this.baseUrl = TESTNET_BASE_URL;
