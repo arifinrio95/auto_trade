@@ -40,8 +40,8 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
             const data = await res.json();
 
             if (data.success) {
-                setAutoState(data.data.state);
-                setLastDecision(data.data.decision);
+                setAutoState(data.data);
+                setLastDecision(data.data.lastDecision);
                 setCountdown(CHECK_INTERVAL / 1000); // Reset countdown
                 if (onRefresh) onRefresh();
             }
@@ -248,9 +248,13 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
                     <div className="p-4 rounded-lg bg-white border border-gray-100 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                <span className={`text-lg font-bold capitalize ${lastDecision.marketOutlook === 'bullish' ? 'text-green-600' :
-                                    lastDecision.marketOutlook === 'bearish' ? 'text-red-600' : 'text-gray-600'
+                                <span className={`text-lg font-bold capitalize ${lastDecision.action === 'BUY' ? 'text-green-600' :
+                                    lastDecision.action === 'SELL' ? 'text-red-600' : 'text-blue-600'
                                     }`}>
+                                    {lastDecision.action}
+                                </span>
+                                <span className="text-gray-300">|</span>
+                                <span className="text-sm font-medium text-gray-500 uppercase tracking-tight">
                                     {lastDecision.marketOutlook}
                                 </span>
                             </div>
@@ -259,7 +263,10 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
                             </span>
                         </div>
 
-                        <p className="text-sm text-gray-600 mb-3 leading-relaxed">{lastDecision.overallStrategy}</p>
+                        <div className="mb-3">
+                            <div className="text-[10px] text-gray-400 font-bold uppercase mb-1">AI Reasoning</div>
+                            <p className="text-sm text-gray-700 leading-relaxed italic">"{lastDecision.reason || lastDecision.overallStrategy}"</p>
+                        </div>
 
                         {lastDecision.newOrder?.shouldOpen && (
                             <div className={`p-2 rounded bg-gray-50 border border-gray-100 flex items-center gap-2 text-sm font-medium ${lastDecision.newOrder.side === 'BUY' ? 'text-green-700' : 'text-red-700'

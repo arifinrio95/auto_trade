@@ -169,10 +169,33 @@ export default async function handler(req, res) {
                     throw new Error(cronData.error || cronData.message || 'Cron trigger failed');
                 }
 
+                // After a successful check, fetch the full fresh state to return it
+                const logs = await prisma.analysisLog.findMany({
+                    take: 100,
+                    orderBy: { time: 'desc' },
+                });
+
+                const allTrades = await prisma.trade.findMany({
+                    orderBy: { time: 'asc' }
+                });
+
+                // Simplified stats for response
+                const stats = {
+                    totalChecks: await prisma.analysisLog.count({ where: { type: 'decision' } }),
+                    tradesExecuted: allTrades.length,
+                    totalPnl: 0, // In a full refactor, this calc would be shared
+                    winRate: 0
+                };
+
                 return res.status(200).json({
                     success: true,
                     message: "Manual check completed successfully",
-                    data: cronData.decision
+                    data: {
+                        isRunning: true,
+                        logs,
+                        stats,
+                        lastDecision: cronData.decision
+                    }
                 });
             }
 
