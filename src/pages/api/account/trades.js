@@ -23,42 +23,61 @@ export default async function handler(req, res) {
         // 1. Fetch from Binance
         const binanceTrades = await client.getMyTrades(symbol, parseInt(limit));
 
-        // 2. Sync to Database (Upsert)
-        await Promise.all(binanceTrades.map(trade =>
-            prisma.trade.upsert({
-                where: { orderId: trade.orderId.toString() },
-                update: {
-                    status: 'FILLED', // Historical trades are always filled
-                },
-                create: {
-                    orderId: trade.orderId.toString(),
-                    symbol: trade.symbol,
-                    side: trade.isBuyer ? 'BUY' : 'SELL',
-                    price: parseFloat(trade.price),
-                    quantity: parseFloat(trade.qty),
-                    quoteQty: parseFloat(trade.quoteQty),
-                    commission: parseFloat(trade.commission),
-                    commissionAsset: trade.commissionAsset,
-                    time: new Date(trade.time),
-                    status: 'FILLED'
+        // 2. Sync to Database (Upsert carefully)
+        // We want to fetch from Binance to get "fills", but we don't want to overwrite 
+        // our local data (like TP/SL) if the trade was created by our Cron.
+
+        for (const trade of binanceTrades) {
+            const orderIdStr = trade.orderId.toString();
+
+            // Check existence first
+            const existing = await prisma.trade.findUnique({
+                where: { orderId: orderIdStr }
+            });
+
+            if (existing) {
+                // If exists, just ensure status is FILLED (if it wasn't)
+                if (existing.status !== 'FILLED') {
+                    await prisma.trade.update({
+                        where: { id: existing.id }, // Use internal ID for safety
+                        data: { status: 'FILLED' }
+                    });
                 }
-            })
-        ));
+            } else {
+                // If not exists, create it (Historical import)
+                await prisma.trade.create({
+                    data: {
+                        orderId: orderIdStr,
+                        symbol: trade.symbol,
+                        side: trade.isBuyer ? 'BUY' : 'SELL',
+                        price: parseFloat(trade.price),
+                        quantity: parseFloat(trade.qty),
+                        quoteQty: parseFloat(trade.quoteQty),
+                        commission: parseFloat(trade.commission),
+                        commissionAsset: trade.commissionAsset,
+                        time: new Date(trade.time),
+                        status: 'FILLED'
+                    }
+                });
+            }
+        }
 
         // 3. Fetch final history from DB (Source of Truth)
         const dbTrades = await prisma.trade.findMany({
             where: { symbol },
-            orderBy: { time: 'asc' }, // Get all for PnL calculation in order
+            orderBy: { time: 'desc' },
+            take: 100
         });
 
         // 4. Calculate PnL and Statuses
         const { calculateRealizedPnL } = require('../../../lib/trading_utils');
-        const tradesWithPnL = calculateRealizedPnL(dbTrades);
+        // We need them in ASC order for PnL calc
+        const sortedForPnL = [...dbTrades].sort((a, b) => new Date(a.time) - new Date(b.time));
+        const tradesWithPnL = calculateRealizedPnL(sortedForPnL);
 
         // 5. Format for UI (return latest first)
         const formattedTrades = tradesWithPnL
             .sort((a, b) => new Date(b.time) - new Date(a.time))
-            .slice(0, 100)
             .map(trade => ({
                 ...trade,
                 id: trade.id,

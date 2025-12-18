@@ -155,6 +155,11 @@ ${recentTradesInfo || 'No recent trades recorded in local DB'}
    - For existing positions: Check if price hit TP or SL (mental check) or if trend reversed.
    - For new trades: Look for breakouts or rejections at Bollinger Bands.
 
+**CRITICAL RULES**:
+- For **BUY**: TakeProfit MUST be > Current Price. StopLoss MUST be < Current Price.
+- For **SELL**: TakeProfit MUST be < Current Price. StopLoss MUST be > Current Price.
+- If unsure, do not set TP/SL (use null), but prefer setting them.
+
 **IMPORTANT**: Respond ONLY with a valid JSON object in this format:
 {
   "positionActions": [

@@ -111,35 +111,62 @@ export default async function handler(req, res) {
         // B. Handle New Orders
         if (decision.newOrder?.shouldOpen && decision.confidence > 0.6) {
             const side = decision.newOrder.side;
-            const qty = decision.newOrder.quantity || 0.001;
+
+            // FORCE 0.001 lot size for safety as requested
+            const qty = 0.001;
 
             // Check if we already have a position to avoid double buy
             const canTrade = side === 'BUY' ? openPositions.length === 0 : true;
 
             if (canTrade) {
                 console.log(`Executing new ${side} order for ${state.symbol}...`);
-                const orderRes = await client.placeMarketOrder(state.symbol, side, qty);
 
-                const avgPrice = parseFloat(orderRes.executedQty) > 0
-                    ? parseFloat(orderRes.cummulativeQuoteQty) / parseFloat(orderRes.executedQty)
-                    : parseFloat(orderRes.price);
+                // VALIDATION: Sanitize TP/SL
+                let { takeProfit, stopLoss } = decision.newOrder;
 
-                await prisma.trade.create({
-                    data: {
-                        orderId: orderRes.orderId.toString(),
-                        symbol: state.symbol,
-                        side: side,
-                        price: avgPrice,
-                        quantity: parseFloat(orderRes.executedQty),
-                        quoteQty: parseFloat(orderRes.cummulativeQuoteQty),
-                        status: 'FILLED',
-                        commission: 0,
-                        commissionAsset: 'USDT',
-                        stopLoss: decision.newOrder.stopLoss ? parseFloat(decision.newOrder.stopLoss) : null,
-                        takeProfit: decision.newOrder.takeProfit ? parseFloat(decision.newOrder.takeProfit) : null
+                if (side === 'BUY') {
+                    // TP must be > Price, SL must be < Price
+                    if (takeProfit && takeProfit <= marketData.currentPrice) {
+                        console.warn(`Invalid TP (${takeProfit}) for BUY at ${marketData.currentPrice}. Removing TP.`);
+                        takeProfit = null;
                     }
-                });
-                logs.push(`Opened new ${side} order: ${decision.newOrder.reason} (TP: ${decision.newOrder.takeProfit}, SL: ${decision.newOrder.stopLoss})`);
+                    if (stopLoss && stopLoss >= marketData.currentPrice) {
+                        console.warn(`Invalid SL (${stopLoss}) for BUY at ${marketData.currentPrice}. Removing SL.`);
+                        stopLoss = null;
+                    }
+                } else if (side === 'SELL') {
+                    // For Shorting (Futures only, typically spot is just closing)
+                    // If this is spot selling, we usually don't set TP/SL for the trade record itself in same way
+                    // But if the logic implies "Opening a Short", then TP < Price, SL > Price
+                }
+
+                try {
+                    const orderRes = await client.placeMarketOrder(state.symbol, side, qty);
+
+                    const avgPrice = parseFloat(orderRes.executedQty) > 0
+                        ? parseFloat(orderRes.cummulativeQuoteQty) / parseFloat(orderRes.executedQty)
+                        : parseFloat(orderRes.price);
+
+                    await prisma.trade.create({
+                        data: {
+                            orderId: orderRes.orderId.toString(),
+                            symbol: state.symbol,
+                            side: side,
+                            price: avgPrice,
+                            quantity: parseFloat(orderRes.executedQty),
+                            quoteQty: parseFloat(orderRes.cummulativeQuoteQty),
+                            status: 'FILLED',
+                            commission: 0,
+                            commissionAsset: 'USDT',
+                            stopLoss: stopLoss ? parseFloat(stopLoss) : null,
+                            takeProfit: takeProfit ? parseFloat(takeProfit) : null
+                        }
+                    });
+                    logs.push(`Opened new ${side} order: ${decision.newOrder.reason} (TP: ${takeProfit}, SL: ${stopLoss})`);
+                } catch (err) {
+                    console.error('Trade Execution Failed:', err);
+                    logs.push(`Trade Execution Failed: ${err.message}`);
+                }
             }
         }
 
