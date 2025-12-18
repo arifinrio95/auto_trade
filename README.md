@@ -129,6 +129,38 @@ auto_trade/
 └── README.md
 ```
 
+## 🚀 Deployment (Vercel + Persistence)
+
+This bot is optimized for deployment on **Vercel** with background persistence using **Prisma** and **GitHub Actions**.
+
+### 1. Database Setup
+You need a Postgres database to store trade history and bot state:
+- Create a project on [Vercel](https://vercel.com).
+- Go to the **Storage** tab and create a **Vercel Postgres** database.
+- Connect it to your project. Vercel will set `POSTGRES_PRISMA_URL` and `DATABASE_URL` for you.
+
+### 2. Cron Jobs (Background Trading)
+Since Vercel Hobby plan limits native crons to 1x daily, we use **GitHub Actions** to trigger the bot every 5 minutes:
+1. Go to your GitHub Repo **Settings** > **Secrets and variables** > **Actions**.
+2. Add a **New repository secret**:
+   - Name: `CRON_SECRET`
+   - Value: `your_secret_password`
+3. Add the same `CRON_SECRET` to your **Vercel Environment Variables**.
+
+### 3. Environment Variables
+Set these in Vercel:
+- `BINANCE_API_KEY`
+- `BINANCE_SECRET_KEY`
+- `GEMINI_API_KEY`
+- `DATABASE_URL`
+- `CRON_SECRET`
+
+### 4. Database Migration
+In your local terminal (ensure `.env` has the production `DATABASE_URL` temporarily):
+```bash
+npx prisma db push
+```
+
 ## 🔐 API Endpoints
 
 | Endpoint | Method | Description |
@@ -139,6 +171,8 @@ auto_trade/
 | `/api/trading/analyze` | POST | AI market analysis |
 | `/api/trading/execute` | POST | Execute trade |
 | `/api/trading/orders` | GET/DELETE | Manage orders |
+| `/api/trading/auto` | GET/POST | Auto-trading state & logs |
+| `/api/cron/trade` | POST | Background trade trigger (via GitHub Actions) |
 
 ## 📄 License
 
