@@ -59,10 +59,15 @@ export default async function handler(req, res) {
             data: formattedTrades,
         });
     } catch (error) {
-        console.error('Trades sync error:', error);
+        console.error('Trades sync/fetch error:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
 
         // Fallback: If DB fails but Binance works, or vice-versa
         try {
+            console.log('Attempting DB fallback for trades...');
             const dbTrades = await prisma.trade.findMany({
                 where: { symbol },
                 orderBy: { time: 'desc' },
@@ -74,9 +79,11 @@ export default async function handler(req, res) {
                 warning: 'Sync failed, showing cached data'
             });
         } catch (dbError) {
+            console.error('Final DB fallback failed:', dbError);
             res.status(500).json({
                 success: false,
                 error: error.message || 'Failed to sync trades',
+                details: 'Database connectivity issue detected'
             });
         }
     }

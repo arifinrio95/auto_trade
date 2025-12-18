@@ -82,7 +82,16 @@ export default async function handler(req, res) {
                 },
             });
         } catch (error) {
-            return res.status(500).json({ success: false, error: 'Database error' });
+            console.error('Auto-trading GET error:', {
+                message: error.message,
+                stack: error.stack,
+                code: error.code
+            });
+            return res.status(500).json({
+                success: false,
+                error: 'Database error',
+                details: error.message
+            });
         }
     }
 

@@ -90,10 +90,15 @@ export default async function handler(req, res) {
             },
         });
     } catch (error) {
-        console.error('Order error:', error);
+        console.error('Order/Database error details:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
         res.status(500).json({
             success: false,
             error: error.message || 'Failed to place order',
+            details: 'Order execution or database persistence failed'
         });
     }
 }

@@ -102,7 +102,11 @@ export default async function handler(req, res) {
 
         res.status(200).json({ success: true, decision });
     } catch (error) {
-        console.error('Cron job error:', error);
+        console.error('Cron job error details:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
         res.status(500).json({ success: false, error: error.message });
     }
 }
