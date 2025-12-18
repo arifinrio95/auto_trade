@@ -1,4 +1,4 @@
-export default function StatsPanel({ stats }) {
+export default function StatsPanel({ stats, isRunning }) {
     const { totalPnL = 0, winRate = 0, totalTrades = 0 } = stats || {};
     const pnlColor = totalPnL >= 0 ? 'text-green-600' : 'text-red-600';
 
