@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
-import PriceChart from '@/components/PriceChart';
+import TradingViewWidget from '@/components/TradingViewWidget';
 import ProfitChart from '@/components/ProfitChart';
 import IndicatorPanel from '@/components/IndicatorPanel';
 import TradeHistory from '@/components/TradeHistory';
@@ -221,9 +221,8 @@ export default function Home() {
                             <h3 className="text-lg font-semibold mb-6 text-gray-900 tracking-tight flex items-center justify-between">
                                 <span>Price Action • {symbol}</span>
                             </h3>
-                            <PriceChart
-                                candles={marketData?.candles}
-                                currentPrice={marketData?.currentPrice}
+                            <TradingViewWidget
+                                symbol={symbol}
                             />
                         </div>
 
