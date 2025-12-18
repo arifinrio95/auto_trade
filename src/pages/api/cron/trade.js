@@ -9,8 +9,11 @@ export default async function handler(req, res) {
     // Check Authorization header (Optional: set CRON_SECRET in env for security)
     const authHeader = req.headers.authorization;
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        console.warn('Unauthorized cron attempt');
         return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
+
+    console.log('Cron job triggered. Starting analysis cycle...');
 
     try {
         // 1. Check if global bot is running

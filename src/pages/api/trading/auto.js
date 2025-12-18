@@ -147,14 +147,32 @@ export default async function handler(req, res) {
             if (action === 'check') {
                 const state = await prisma.botState.findUnique({
                     where: { id: 'global' },
+                }) || { symbol: 'BTCUSDT' };
+
+                // Reuse the cron logic to perform a real check
+                const protocol = req.headers['x-forwarded-proto'] || 'http';
+                const host = req.headers.host;
+                const cronUrl = `${protocol}://${host}/api/cron/trade`;
+
+                // We trigger the cron endpoint with the secret to perform the actual work
+                const cronRes = await fetch(cronUrl, {
+                    method: 'GET', // or POST depending on how your cron is set up
+                    headers: {
+                        'Authorization': `Bearer ${process.env.CRON_SECRET}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
+
+                const cronData = await cronRes.json();
+
+                if (!cronData.success) {
+                    throw new Error(cronData.error || cronData.message || 'Cron trigger failed');
+                }
 
                 return res.status(200).json({
                     success: true,
-                    data: {
-                        state,
-                        message: "Manual check triggered via Cron logic recommended"
-                    },
+                    message: "Manual check completed successfully",
+                    data: cronData.decision
                 });
             }
 
