@@ -198,6 +198,76 @@ export function calculateVWAP(highs, lows, closes, volumes) {
 }
 
 /**
+ * Calculate Average Directional Index (ADX)
+ */
+export function calculateADX(highs, lows, closes, period = 14) {
+    const tr = [];
+    const dmPlus = [];
+    const dmMinus = [];
+
+    // Calculate TR, +DM, -DM
+    for (let i = 1; i < highs.length; i++) {
+        const h = highs[i];
+        const l = lows[i];
+        const cp = closes[i - 1];
+
+        const mTr = Math.max(h - l, Math.abs(h - cp), Math.abs(l - cp));
+        tr.push(mTr);
+
+        const upMove = h - highs[i - 1];
+        const downMove = lows[i - 1] - l;
+
+        if (upMove > downMove && upMove > 0) dmPlus.push(upMove);
+        else dmPlus.push(0);
+
+        if (downMove > upMove && downMove > 0) dmMinus.push(downMove);
+        else dmMinus.push(0);
+    }
+
+    // Smooth TR, +DM, -DM (Wilder's Smoothing)
+    const smooth = (data, p) => {
+        let val = data.slice(0, p).reduce((a, b) => a + b, 0);
+        const res = [val];
+        for (let i = p; i < data.length; i++) {
+            val = val - (val / p) + data[i];
+            res.push(val);
+        }
+        return res;
+    };
+
+    const str = smooth(tr, period);
+    const sPlus = smooth(dmPlus, period);
+    const sMinus = smooth(dmMinus, period);
+
+    const dx = [];
+    for (let i = 0; i < str.length; i++) {
+        const plusDI = (sPlus[i] / str[i]) * 100;
+        const minusDI = (sMinus[i] / str[i]) * 100;
+        const sum = plusDI + minusDI;
+
+        if (sum === 0) dx.push(0);
+        else dx.push((Math.abs(plusDI - minusDI) / sum) * 100);
+    }
+
+    // ADX is SMA of DX
+    const adx = [];
+    if (dx.length >= period) {
+        let val = dx.slice(0, period).reduce((a, b) => a + b, 0) / period;
+        adx.push(val);
+        for (let i = period; i < dx.length; i++) {
+            val = ((val * (period - 1)) + dx[i]) / period;
+            adx.push(val);
+        }
+    }
+
+    return {
+        adx,
+        currentADX: adx[adx.length - 1],
+        strength: adx[adx.length - 1] > 25 ? 'STRONG' : 'WEAK'
+    };
+}
+
+/**
  * Analyze all indicators and generate a summary
  */
 export function analyzeIndicators(candles) {
@@ -223,6 +293,7 @@ export function analyzeIndicators(candles) {
     const ema12 = calculateEMA(closes, 12);
     const ema26 = calculateEMA(closes, 26);
     const vwap = calculateVWAP(highs, lows, closes, volumes);
+    const adx = calculateADX(highs, lows, closes);
 
     const currentRSI = rsi[rsi.length - 1];
     const currentATR = atr[atr.length - 1];
@@ -285,6 +356,7 @@ export function analyzeIndicators(candles) {
             sma: { sma20: currentSMA20, sma50: currentSMA50, trend: signals.trend },
             ema: { ema12: currentEMA12, ema26: currentEMA26, momentum: signals.momentum },
             vwap: { value: currentVWAP, signal: signals.vwap },
+            adx: { value: adx.currentADX, strength: adx.strength },
         },
         signals,
         strength: {

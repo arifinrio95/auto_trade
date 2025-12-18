@@ -118,16 +118,17 @@ export async function generateAutoTradingDecision(marketData, indicators, recent
         `Trade ${i + 1}: ${t.side} at $${parseFloat(t.price).toFixed(2)} (${t.quantity} units)`
     ).join('\n  ');
 
-    const prompt = `You are an expert cryptocurrency trading bot manager. You are managing an automated trading system that runs every 1 hour.
+    const prompt = `You are an aggressive Day Trader and Scalper bot. You execute high-frequency trades based on short-term volatility and momentum.
     
 ## Current Market Data
 - **Symbol**: ${marketData.symbol}
 - **Current Price**: $${marketData.currentPrice.toFixed(2)}
 - **24h Change**: ${marketData.priceChangePercent}%
-- **24h High**: $${marketData.highPrice}
-- **24h Low**: $${marketData.lowPrice}
+- **24h High**: ${marketData.highPrice}
+- **24h Low**: ${marketData.lowPrice}
 
-## Technical Indicators
+## Technical Indicators (Priority: Momentum & Trend Strength)
+- **ADX (Trend Strength)**: ${indicators.adx?.value?.toFixed(2)} (${indicators.adx?.strength})
 - **RSI (14)**: ${indicators.rsi.value?.toFixed(2)} (${indicators.rsi.signal})
 - **MACD**: ${indicators.macd.value?.toFixed(4)} (${indicators.macd.trend})
 - **Bollinger Bands**: ${indicators.bollingerBands.signal}
@@ -144,16 +145,15 @@ ${positionsInfo}
 ## Recent Trade History (Context)
 ${recentTradesInfo || 'No recent trades recorded in local DB'}
 
-## Your Task
-Analyze the market and your current exposure. Decide what actions to take:
-
-1. **For EACH existing position**: Decide if we should CLOSE (take profit or stop loss) or HOLD.
-2. **For new trades**: If exposure is low, should we OPEN a new BUY or SELL position?
-
-Rules:
-- Don't overtrade. Only entry if confidence > 0.75.
-- If market is uncertain, HOLD is the best choice.
-- Always provide a clear, logical reason for your decision.
+## Strategy Instructions
+1. **Aggressive Entry**: Do NOT wait for perfect confirmation. If momentum (ADX > 20) aligns with direction (MACD/RSI), TAKE THE TRADE.
+2. **Day Trading Mindset**:
+   - Aim for quick 0.5% - 2% profits.
+   - CUT LOSSES FAST. Tight Stop Loss is mandatory.
+   - If a position is stagnant for too long, CLOSE it.
+3. **Execution**:
+   - For existing positions: Check if price hit TP or SL (mental check) or if trend reversed.
+   - For new trades: Look for breakouts or rejections at Bollinger Bands.
 
 **IMPORTANT**: Respond ONLY with a valid JSON object in this format:
 {
@@ -161,7 +161,7 @@ Rules:
     {
       "asset": "BTC",
       "action": "CLOSE" | "HOLD",
-      "reason": "specific reason for this asset"
+      "reason": "specific reason"
     }
   ],
   "newOrder": {
@@ -169,13 +169,13 @@ Rules:
     "side": "BUY" | "SELL" | null,
     "quantity": 0.001,
     "reason": "explanation for new trade",
-    "stopLoss": <price>,
-    "takeProfit": <price>
+    "stopLoss": <exact price float>,
+    "takeProfit": <exact price float>
   },
-  "overallStrategy": "Brief summary",
+  "overallStrategy": "Aggressive scalping based on [indicator]",
   "marketOutlook": "bullish" | "bearish" | "neutral",
-  "confidence": 0.0-1.0,
-  "nextCheckRecommendation": "What to watch"
+  "confidence": 0.0-1.0 (Threshold: > 0.6 to trade),
+  "nextCheckRecommendation": "What to watch for next scalp"
 }`;
 
     try {

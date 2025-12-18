@@ -39,5 +39,7 @@ model Trade {
   time            DateTime @default(now())
   orderId         String   @unique
   pnl             Float?
+  stopLoss        Float?
+  takeProfit      Float?
   status          String   @default("FILLED")
 }

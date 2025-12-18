@@ -109,7 +109,7 @@ export default async function handler(req, res) {
         }
 
         // B. Handle New Orders
-        if (decision.newOrder?.shouldOpen && decision.confidence > 0.75) {
+        if (decision.newOrder?.shouldOpen && decision.confidence > 0.6) {
             const side = decision.newOrder.side;
             const qty = decision.newOrder.quantity || 0.001;
 
@@ -134,10 +134,12 @@ export default async function handler(req, res) {
                         quoteQty: parseFloat(orderRes.cummulativeQuoteQty),
                         status: 'FILLED',
                         commission: 0,
-                        commissionAsset: 'USDT'
+                        commissionAsset: 'USDT',
+                        stopLoss: decision.newOrder.stopLoss ? parseFloat(decision.newOrder.stopLoss) : null,
+                        takeProfit: decision.newOrder.takeProfit ? parseFloat(decision.newOrder.takeProfit) : null
                     }
                 });
-                logs.push(`Opened new ${side} order: ${decision.newOrder.reason}`);
+                logs.push(`Opened new ${side} order: ${decision.newOrder.reason} (TP: ${decision.newOrder.takeProfit}, SL: ${decision.newOrder.stopLoss})`);
             }
         }
 
