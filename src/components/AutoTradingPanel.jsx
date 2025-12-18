@@ -21,6 +21,15 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
             if (data.success) {
                 setAutoState(data.data);
                 setIsRunning(data.data.isRunning);
+
+                // Calculate remaining time for countdown
+                if (data.data.isRunning && data.data.lastCheck) {
+                    const lastCheckTime = new Date(data.data.lastCheck).getTime();
+                    const now = new Date().getTime();
+                    const timeSinceLastCheck = now - lastCheckTime;
+                    const remaining = Math.max(0, Math.floor((CHECK_INTERVAL - timeSinceLastCheck) / 1000));
+                    setCountdown(remaining);
+                }
             }
         } catch (error) {
             console.error('Failed to fetch auto-trading status:', error);
@@ -50,7 +59,7 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
         } finally {
             setIsLoading(false);
         }
-    }, [symbol]);
+    }, [symbol, onRefresh]);
 
     // Start auto-trading
     const handleStart = async () => {
@@ -71,15 +80,6 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
 
                 // Perform initial check
                 await performCheck();
-
-                // Set up interval for periodic checks
-                intervalRef.current = setInterval(performCheck, CHECK_INTERVAL);
-
-                // Set up countdown timer
-                countdownRef.current = setInterval(() => {
-                    setCountdown(prev => Math.max(0, prev - 1));
-                }, COUNTDOWN_UPDATE);
-
                 if (onRefresh) onRefresh();
             }
         } catch (error) {
@@ -104,10 +104,6 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
             if (data.success) {
                 setIsRunning(false);
                 if (data.data) setAutoState(data.data);
-
-                // Clear intervals
-                if (intervalRef.current) clearInterval(intervalRef.current);
-                if (countdownRef.current) clearInterval(countdownRef.current);
                 setCountdown(0);
                 if (onRefresh) onRefresh();
             }
@@ -124,15 +120,29 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
         await performCheck();
     };
 
-    // Initial fetch on mount
+    // Timer Management Effect
     useEffect(() => {
         fetchStatus();
+
+        if (isRunning) {
+            // Set up interval for countdown updates (1s)
+            countdownRef.current = setInterval(() => {
+                setCountdown(prev => {
+                    if (prev <= 1) {
+                        // When countdown hits 0, trigger check and reset
+                        performCheck();
+                        return CHECK_INTERVAL / 1000;
+                    }
+                    return prev - 1;
+                });
+            }, COUNTDOWN_UPDATE);
+        }
 
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
             if (countdownRef.current) clearInterval(countdownRef.current);
         };
-    }, [fetchStatus]);
+    }, [isRunning, fetchStatus, performCheck]);
 
     // Format countdown time
     const formatCountdown = (seconds) => {
@@ -249,8 +259,8 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
                                 <span className={`text-lg font-bold capitalize ${(lastDecision.action === 'BUY' || lastDecision.newOrder?.side === 'BUY') ? 'text-green-600' :
-                                        (lastDecision.action === 'SELL' || lastDecision.newOrder?.side === 'SELL') ? 'text-red-600' :
-                                            (lastDecision.positionActions?.some(a => a.action === 'CLOSE') ? 'text-orange-600' : 'text-blue-600')
+                                    (lastDecision.action === 'SELL' || lastDecision.newOrder?.side === 'SELL') ? 'text-red-600' :
+                                        (lastDecision.positionActions?.some(a => a.action === 'CLOSE') ? 'text-orange-600' : 'text-blue-600')
                                     }`}>
                                     {lastDecision.action || (lastDecision.newOrder?.shouldOpen ? lastDecision.newOrder.side : 'PORTFOLIO')}
                                 </span>
