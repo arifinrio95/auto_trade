@@ -37,7 +37,26 @@ export default function BalanceCard({ balances, totalBalance }) {
         <div className="card">
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Portfolio</h3>
-                <span className="badge badge-neutral bg-gray-100 text-gray-500 border-none">Testnet</span>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={async () => {
+                            if (window.confirm('Reset balance? This will SELL all BTC holdings to USDT to restart testing.')) {
+                                try {
+                                    const res = await fetch('/api/account/reset', { method: 'POST' });
+                                    const data = await res.json();
+                                    alert(data.message || (data.success ? 'Reset success!' : 'Reset failed'));
+                                    window.location.reload(); // Refresh to see updated balances
+                                } catch (e) {
+                                    alert('Reset failed: ' + e.message);
+                                }
+                            }
+                        }}
+                        className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:text-red-700 transition-colors flex items-center gap-1 bg-red-50 px-2 py-1 rounded border border-red-100"
+                    >
+                        <span className="text-xs">↺</span> Reset Account
+                    </button>
+                    <span className="badge badge-neutral bg-gray-100 text-gray-500 border-none">Testnet</span>
+                </div>
             </div>
 
             {/* Total Balance */}
@@ -66,9 +85,9 @@ export default function BalanceCard({ balances, totalBalance }) {
                             >
                                 <div className="flex items-center gap-3">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${balance.asset === 'USDT' ? 'bg-green-100 text-green-700' :
-                                            balance.asset === 'BTC' ? 'bg-orange-100 text-orange-700' :
-                                                balance.asset === 'ETH' ? 'bg-blue-100 text-blue-700' :
-                                                    'bg-gray-100 text-gray-700'
+                                        balance.asset === 'BTC' ? 'bg-orange-100 text-orange-700' :
+                                            balance.asset === 'ETH' ? 'bg-blue-100 text-blue-700' :
+                                                'bg-gray-100 text-gray-700'
                                         }`}>
                                         {balance.asset[0]}
                                     </div>

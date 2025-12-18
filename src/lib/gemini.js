@@ -10,8 +10,9 @@ export function initializeGemini(apiKey) {
     }
 
     genAI = new GoogleGenerativeAI(apiKey);
-    // Using the new gemini-2.0-flash model
-    model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    // Using gemini-1.5-flash for maximum stability/availability
+    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    console.log('Gemini AI Initialized with model: gemini-1.5-flash');
     return true;
 }
 

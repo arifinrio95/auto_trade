@@ -27,7 +27,8 @@ export default function TradeHistory({ trades }) {
                 <table className="w-full text-sm text-left">
                     <thead className="text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
                         <tr>
-                            <th className="pb-3 pl-2 font-medium">Time</th>
+                            <th className="pb-3 pl-2 font-medium">Pair</th>
+                            <th className="pb-3 font-medium">Time</th>
                             <th className="pb-3 font-medium">Side</th>
                             <th className="pb-3 font-medium text-right">Price</th>
                             <th className="pb-3 font-medium text-right">Qty</th>
@@ -38,7 +39,10 @@ export default function TradeHistory({ trades }) {
                     <tbody className="divide-y divide-gray-50">
                         {trades.map((trade, i) => (
                             <tr key={trade.id || i} className="hover:bg-gray-50 transition-colors">
-                                <td className="py-3 pl-2 text-gray-500 font-mono text-xs">
+                                <td className="py-3 pl-2 text-gray-900 font-bold text-xs">
+                                    {trade.symbol}
+                                </td>
+                                <td className="py-3 text-gray-500 font-mono text-xs">
                                     {format(new Date(trade.time || trade.timestamp), 'HH:mm:ss')}
                                 </td>
                                 <td className="py-3">
