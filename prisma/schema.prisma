@@ -1,0 +1,44 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model BotState {
+  id        String   @id @default("global")
+  isRunning Boolean  @default(false)
+  symbol    String   @default("BTCUSDT")
+  updatedAt DateTime @updatedAt
+}
+
+model AnalysisLog {
+  id            String   @id @default(cuid())
+  time          DateTime @default(now())
+  type          String   // 'decision', 'trade', 'error'
+  marketOutlook String?
+  confidence    Float?
+  message       String
+  data          Json?    // Store full analysis/decision object
+}
+
+model Trade {
+  id              String   @id @default(cuid())
+  symbol          String
+  side            String   // 'BUY' or 'SELL'
+  price           Float
+  quantity        Float
+  quoteQty        Float
+  commission      Float
+  commissionAsset String
+  time            DateTime @default(now())
+  orderId         String   @unique
+  pnl             Float?
+  status          String   @default("FILLED")
+}
