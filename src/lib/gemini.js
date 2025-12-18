@@ -59,7 +59,7 @@ Based on the above data, provide a trading decision. Consider:
 {
   "action": "BUY" | "SELL" | "HOLD",
   "confidence": 0.0-1.0,
-  "reasoning": "Brief explanation of your decision",
+  "reason": "Brief explanation of your decision",
   "entryPrice": <suggested entry price or null>,
   "stopLoss": <suggested stop loss price>,
   "takeProfit": <suggested take profit price>,
@@ -231,7 +231,7 @@ function generateMockDecision(indicators) {
     return {
         action,
         confidence,
-        reasoning: `Based on technical analysis: RSI ${rsi.signal}, MACD ${macd.trend}, Trend ${sma.trend}. Bullish signals: ${bullishScore}, Bearish signals: ${bearishScore}.`,
+        reason: `Based on technical analysis: RSI ${rsi.signal}, MACD ${macd.trend}, Trend ${sma.trend}. Bullish signals: ${bullishScore}, Bearish signals: ${bearishScore}.`,
         entryPrice: null,
         stopLoss: null,
         takeProfit: null,

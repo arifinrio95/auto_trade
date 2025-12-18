@@ -18,7 +18,7 @@ export default function AnalysisHistory({ logs }) {
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                     <span className={`text-sm font-bold capitalize ${data.action === 'BUY' ? 'text-green-600' :
-                                            data.action === 'SELL' ? 'text-red-600' : 'text-blue-600'
+                                        data.action === 'SELL' ? 'text-red-600' : 'text-blue-600'
                                         }`}>
                                         {data.action || 'HOLD'}
                                     </span>
@@ -32,7 +32,7 @@ export default function AnalysisHistory({ logs }) {
                                 </span>
                             </div>
                             <p className="text-xs text-gray-600 leading-relaxed italic">
-                                "{data.reason || log.message}"
+                                "{data.reason || data.reasoning || log.message}"
                             </p>
                             {data.confidence && (
                                 <div className="mt-2 flex justify-end">

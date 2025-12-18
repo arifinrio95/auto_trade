@@ -58,16 +58,29 @@ export default async function handler(req, res) {
         }
 
         if (order.status === 'FILLED' || order.status === 'NEW') {
+            const executedQty = parseFloat(order.executedQty);
+            const cummulativeQuoteQty = parseFloat(order.cummulativeQuoteQty);
+
+            // Calculate average price for market orders if order.price is 0
+            const avgPrice = executedQty > 0 ? cummulativeQuoteQty / executedQty : (parseFloat(order.price) || 0);
+
+            // Calculate total commission from fills
+            let totalCommission = 0;
+            let commissionAsset = 'USDT';
+            if (order.fills && order.fills.length > 0) {
+                totalCommission = order.fills.reduce((sum, fill) => sum + parseFloat(fill.commission), 0);
+                commissionAsset = order.fills[0].commissionAsset;
+            }
+
             await prisma.trade.create({
                 data: {
                     symbol: order.symbol,
                     side: order.side,
-                    price: parseFloat(order.price) || 0, // Market orders might not have price immediately, but response usually does 
-                    // Note: accessing fills for accurate price would be better for market orders
-                    quantity: parseFloat(order.executedQty),
-                    quoteQty: parseFloat(order.cummulativeQuoteQty),
-                    commission: 0, // Ideally parse fills for commission
-                    commissionAsset: 'USDT', // Default
+                    price: avgPrice,
+                    quantity: executedQty,
+                    quoteQty: cummulativeQuoteQty,
+                    commission: totalCommission,
+                    commissionAsset: commissionAsset,
                     orderId: order.orderId.toString(),
                     status: order.status
                 }

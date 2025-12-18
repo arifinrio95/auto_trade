@@ -58,7 +58,7 @@ export default async function handler(req, res) {
         await prisma.analysisLog.create({
             data: {
                 type: 'decision',
-                message: `Cron: ${decision.action} (${(decision.confidence * 100).toFixed(0)}%) - ${decision.reason}`,
+                message: `Cron: ${decision.action} (${(decision.confidence * 100).toFixed(0)}%) - ${decision.reason || decision.reasoning}`,
                 marketOutlook: decision.marketOutlook,
                 confidence: decision.confidence,
                 data: decision
@@ -66,40 +66,60 @@ export default async function handler(req, res) {
         });
 
         // 4. Auto-Execute Trade if criteria met
-        if (decision.action !== 'HOLD' && decision.confidence > 0.7) {
-            // SAFETY: Double check if we already really want to trade. 
-            // In a real bot, we'd check current open positions here to avoid over-trading.
+        if (decision.action !== 'HOLD' && decision.confidence > 0.75) {
+            // Check current balances to prevent over-trading
+            const balanceUrl = `${protocol}://${host}/api/account/balance`;
+            const balanceRes = await fetch(balanceUrl);
+            const balanceData = await balanceRes.json();
+            const balances = balanceData.data?.balances || [];
 
-            // Execute
-            const executeUrl = `${protocol}://${host}/api/trading/execute`;
-            const tradeRes = await fetch(executeUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    symbol: state.symbol,
-                    side: decision.action,
-                    quantity: decision.action === 'BUY' ? 0.001 : 0.001, // Fixed size for demo safety
-                })
-            });
+            const baseAsset = state.symbol.replace('USDT', '');
+            const baseBalance = balances.find(b => b.asset === baseAsset)?.total || 0;
+            const usdtBalance = balances.find(b => b.asset === 'USDT')?.total || 0;
 
-            const tradeData = await tradeRes.json();
+            let shouldTrade = false;
+            if (decision.action === 'BUY' && baseBalance < 0.0001 && usdtBalance > 10) {
+                // Only BUY if we don't already have a position and have enough USDT
+                shouldTrade = true;
+            } else if (decision.action === 'SELL' && baseBalance >= 0.001) {
+                // Only SELL if we have enough of the asset
+                shouldTrade = true;
+            }
 
-            if (tradeData.success) {
-                await prisma.analysisLog.create({
-                    data: {
-                        type: 'trade',
-                        message: `Auto-Executed ${decision.action}`,
-                        data: tradeData
-                    }
+            if (shouldTrade) {
+                // Execute
+                const executeUrl = `${protocol}://${host}/api/trading/execute`;
+                const tradeRes = await fetch(executeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: state.symbol,
+                        side: decision.action,
+                        quantity: 0.001, // Fixed size
+                    })
                 });
+
+                const tradeData = await tradeRes.json();
+
+                if (tradeData.success) {
+                    await prisma.analysisLog.create({
+                        data: {
+                            type: 'trade',
+                            message: `Auto-Executed ${decision.action} at $${tradeData.data.price}`,
+                            data: tradeData
+                        }
+                    });
+                } else {
+                    await prisma.analysisLog.create({
+                        data: {
+                            type: 'error',
+                            message: `Trade Execution Failed: ${tradeData.error}`,
+                            data: tradeData
+                        }
+                    });
+                }
             } else {
-                await prisma.analysisLog.create({
-                    data: {
-                        type: 'error',
-                        message: `Trade Execution Failed: ${tradeData.error}`,
-                        data: tradeData
-                    }
-                });
+                console.log(`Skipping ${decision.action}: balance constraints not met`, { baseBalance, usdtBalance });
             }
         }
 
