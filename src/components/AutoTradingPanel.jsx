@@ -22,12 +22,11 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
                 setAutoState(data.data);
                 setIsRunning(data.data.isRunning);
 
-                // Calculate remaining time for countdown
-                if (data.data.isRunning && data.data.lastCheck) {
-                    const lastCheckTime = new Date(data.data.lastCheck).getTime();
-                    const now = new Date().getTime();
-                    const timeSinceLastCheck = now - lastCheckTime;
-                    const remaining = Math.max(0, Math.floor((CHECK_INTERVAL - timeSinceLastCheck) / 1000));
+                // Calculate remaining time until the next FIXED hourly cron (0 * * * *)
+                if (data.data.isRunning) {
+                    const now = new Date();
+                    const nextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 0);
+                    const remaining = Math.max(0, Math.floor((nextHour.getTime() - now.getTime()) / 1000));
                     setCountdown(remaining);
                 }
             }
@@ -51,7 +50,8 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
             if (data.success) {
                 setAutoState(data.data);
                 setLastDecision(data.data.lastDecision);
-                setCountdown(CHECK_INTERVAL / 1000); // Reset countdown
+                // We DO NOT reset the countdown here because manual checks 
+                // don't change the fixed GitHub Actions cron schedule.
                 if (onRefresh) onRefresh();
             }
         } catch (error) {
@@ -76,7 +76,11 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
             if (data.success) {
                 setIsRunning(true);
                 if (data.data) setAutoState(data.data);
-                setCountdown(CHECK_INTERVAL / 1000);
+
+                // Calculate initial countdown until next hour
+                const now = new Date();
+                const nextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 0);
+                setCountdown(Math.floor((nextHour.getTime() - now.getTime()) / 1000));
 
                 // Perform initial check
                 await performCheck();
@@ -113,7 +117,6 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
             setIsLoading(false);
         }
     };
-
     // Manual check trigger
     const handleManualCheck = async () => {
         if (!isRunning) return;
@@ -124,14 +127,17 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
     useEffect(() => {
         fetchStatus();
 
+        let timer = null;
         if (isRunning) {
             // Set up interval for countdown updates (1s)
-            countdownRef.current = setInterval(() => {
+            timer = setInterval(() => {
                 setCountdown(prev => {
                     if (prev <= 1) {
-                        // When countdown hits 0, trigger check and reset
-                        performCheck();
-                        return CHECK_INTERVAL / 1000;
+                        // When countdown hits 0, it means the cron just ran.
+                        // We recalculate the target to the NEXT hour to keep it accurate.
+                        const now = new Date();
+                        const nextHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 0);
+                        return Math.floor((nextHour.getTime() - now.getTime()) / 1000);
                     }
                     return prev - 1;
                 });
@@ -139,10 +145,9 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
         }
 
         return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            if (countdownRef.current) clearInterval(countdownRef.current);
+            if (timer) clearInterval(timer);
         };
-    }, [isRunning, fetchStatus, performCheck]);
+    }, [isRunning, fetchStatus]);
 
     // Format countdown time
     const formatCountdown = (seconds) => {
