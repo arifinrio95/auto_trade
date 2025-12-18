@@ -8,10 +8,13 @@ export default async function handler(req, res) {
 
     if (method === 'GET') {
         try {
+            console.log('Database Access Debug: Attempting to fetch BotState...');
             // Get auto-trading status from DB
             const state = await prisma.botState.findUnique({
                 where: { id: 'global' },
             }) || { isRunning: false, symbol: 'BTCUSDT', updatedAt: new Date() };
+
+            console.log('Database Access Debug: Success', { isRunning: state.isRunning });
 
             const latestLog = await prisma.analysisLog.findFirst({
                 where: { type: 'decision' },

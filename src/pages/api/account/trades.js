@@ -9,10 +9,16 @@ export default async function handler(req, res) {
     const { symbol = 'BTCUSDT', limit = 50 } = req.query;
 
     try {
-        const client = new BinanceClient(
-            process.env.BINANCE_API_KEY,
-            process.env.BINANCE_SECRET_KEY
-        );
+        const apiKey = process.env.BINANCE_API_KEY;
+        const secretKey = process.env.BINANCE_SECRET_KEY;
+
+        console.log('API Handler Debug:', {
+            hasApiKey: !!apiKey,
+            hasSecretKey: !!secretKey,
+            apiKeyPrefix: apiKey ? apiKey.substring(0, 4) : 'none'
+        });
+
+        const client = new BinanceClient(apiKey, secretKey);
 
         // 1. Fetch from Binance
         const binanceTrades = await client.getMyTrades(symbol, parseInt(limit));
