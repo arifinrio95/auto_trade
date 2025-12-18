@@ -32,6 +32,8 @@ export default function TradeHistory({ trades }) {
                             <th className="pb-3 font-medium">Side</th>
                             <th className="pb-3 font-medium text-right">Price</th>
                             <th className="pb-3 font-medium text-right">Qty</th>
+                            <th className="pb-3 font-medium text-right">Total</th>
+                            <th className="pb-3 font-medium text-right">Fees</th>
                             <th className="pb-3 font-medium text-right">PnL</th>
                             <th className="pb-3 font-medium text-right pr-2">Status</th>
                         </tr>
@@ -56,6 +58,12 @@ export default function TradeHistory({ trades }) {
                                 </td>
                                 <td className="py-3 text-right text-gray-600 font-mono">
                                     {parseFloat(trade.quantity)}
+                                </td>
+                                <td className="py-3 text-right text-gray-500 font-mono">
+                                    ${parseFloat(trade.quoteQty || (trade.price * trade.quantity)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-3 text-right text-gray-400 text-[10px] font-mono">
+                                    {trade.commission ? `${parseFloat(trade.commission).toFixed(6)} ${trade.commissionAsset}` : '-'}
                                 </td>
                                 <td className={`py-3 text-right font-bold font-mono ${trade.pnl > 0 ? 'text-green-600' : trade.pnl < 0 ? 'text-red-600' : 'text-gray-400'}`}>
                                     {trade.pnl !== null ? `${trade.pnl > 0 ? '+' : ''}${parseFloat(trade.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
