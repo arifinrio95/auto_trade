@@ -248,10 +248,11 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
                     <div className="p-4 rounded-lg bg-white border border-gray-100 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                <span className={`text-lg font-bold capitalize ${lastDecision.action === 'BUY' ? 'text-green-600' :
-                                    lastDecision.action === 'SELL' ? 'text-red-600' : 'text-blue-600'
+                                <span className={`text-lg font-bold capitalize ${(lastDecision.action === 'BUY' || lastDecision.newOrder?.side === 'BUY') ? 'text-green-600' :
+                                        (lastDecision.action === 'SELL' || lastDecision.newOrder?.side === 'SELL') ? 'text-red-600' :
+                                            (lastDecision.positionActions?.some(a => a.action === 'CLOSE') ? 'text-orange-600' : 'text-blue-600')
                                     }`}>
-                                    {lastDecision.action}
+                                    {lastDecision.action || (lastDecision.newOrder?.shouldOpen ? lastDecision.newOrder.side : 'PORTFOLIO')}
                                 </span>
                                 <span className="text-gray-300">|</span>
                                 <span className="text-sm font-medium text-gray-500 uppercase tracking-tight">
@@ -264,14 +265,32 @@ export default function AutoTradingPanel({ symbol, onRefresh }) {
                         </div>
 
                         <div className="mb-3">
-                            <div className="text-[10px] text-gray-400 font-bold uppercase mb-1">AI Reasoning</div>
-                            <p className="text-sm text-gray-700 leading-relaxed italic">"{lastDecision.reason || lastDecision.overallStrategy}"</p>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase mb-1">AI Strategy & Reasoning</div>
+                            <p className="text-sm text-gray-700 leading-relaxed italic">
+                                "{lastDecision.overallStrategy || lastDecision.reason || lastDecision.reasoning}"
+                            </p>
                         </div>
+
+                        {/* Portfolio Actions Detail */}
+                        {lastDecision.positionActions?.length > 0 && (
+                            <div className="space-y-1.5 mb-3 border-t border-gray-50 pt-3">
+                                {lastDecision.positionActions.map((pa, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 text-xs">
+                                        <span className={`font-bold uppercase px-1.5 py-0.5 rounded text-[9px] ${pa.action === 'CLOSE' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
+                                            }`}>
+                                            {pa.action} {pa.asset}
+                                        </span>
+                                        <span className="text-gray-500 italic">{pa.reason}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
                         {lastDecision.newOrder?.shouldOpen && (
                             <div className={`p-2 rounded bg-gray-50 border border-gray-100 flex items-center gap-2 text-sm font-medium ${lastDecision.newOrder.side === 'BUY' ? 'text-green-700' : 'text-red-700'
                                 }`}>
-                                <span>{lastDecision.newOrder.side === 'BUY' ? 'Buy Order' : 'Sell Order'}</span>
+                                <span className="text-[10px] bg-white px-1 rounded border border-gray-100 uppercase">New Order</span>
+                                <span>{lastDecision.newOrder.side === 'BUY' ? 'Buy' : 'Sell'}</span>
                                 <span className="text-gray-400">|</span>
                                 <span className="text-gray-900">{lastDecision.newOrder.quantity} units</span>
                             </div>

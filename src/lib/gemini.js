@@ -114,14 +114,13 @@ export async function generateAutoTradingDecision(marketData, indicators, recent
     ).join('\n  ');
 
     const prompt = `You are an expert cryptocurrency trading bot manager. You are managing an automated trading system that runs every 1 hour.
-
+    
 ## Current Market Data
 - **Symbol**: ${marketData.symbol}
 - **Current Price**: $${marketData.currentPrice.toFixed(2)}
 - **24h Change**: ${marketData.priceChangePercent}%
 - **24h High**: $${marketData.highPrice}
 - **24h Low**: $${marketData.lowPrice}
-- **24h Volume**: ${marketData.volume}
 
 ## Technical Indicators
 - **RSI (14)**: ${indicators.rsi.value?.toFixed(2)} (${indicators.rsi.signal})
@@ -131,46 +130,47 @@ export async function generateAutoTradingDecision(marketData, indicators, recent
 - **Trend**: ${indicators.sma.trend}
 - **Momentum**: ${indicators.ema.momentum}
 
-## Current Open Positions
+## Recent Price Action (Last 20 Candles)
+${recentCandles.slice(-20).map((c, i) => `- C${i + 1}: O: $${c.open.toFixed(2)} H: $${c.high.toFixed(2)} L: $${c.low.toFixed(2)} C: $${c.close.toFixed(2)} V: ${c.volume.toFixed(2)}`).join('\n')}
+
+## Current Portfolio Status
 ${positionsInfo}
 
-## Recent Trade History
-  ${recentTradesInfo || 'No recent trades'}
+## Recent Trade History (Context)
+${recentTradesInfo || 'No recent trades recorded in local DB'}
 
 ## Your Task
-Analyze the market and current positions. Decide what actions to take:
+Analyze the market and your current exposure. Decide what actions to take:
 
-1. **For existing positions**: Should we CLOSE any (take profit/stop loss), or HOLD?
-2. **For new positions**: Should we OPEN a new BUY or SELL position?
-3. **Risk management**: Consider position sizing and exposure
+1. **For EACH existing position**: Decide if we should CLOSE (take profit or stop loss) or HOLD.
+2. **For new trades**: If exposure is low, should we OPEN a new BUY or SELL position?
 
 Rules:
-- Maximum 3 concurrent positions
-- Each position should not exceed 5% of portfolio
-- Always consider risk/reward ratio
-- Don't overtrade - only trade when there's a clear signal
+- Don't overtrade. Only entry if confidence > 0.75.
+- If market is uncertain, HOLD is the best choice.
+- Always provide a clear, logical reason for your decision.
 
-**IMPORTANT**: Respond ONLY with a valid JSON object:
+**IMPORTANT**: Respond ONLY with a valid JSON object in this format:
 {
   "positionActions": [
     {
-      "positionId": 1,
+      "asset": "BTC",
       "action": "CLOSE" | "HOLD",
-      "reason": "explanation"
+      "reason": "specific reason for this asset"
     }
   ],
   "newOrder": {
     "shouldOpen": true | false,
     "side": "BUY" | "SELL" | null,
     "quantity": 0.001,
-    "reason": "explanation",
+    "reason": "explanation for new trade",
     "stopLoss": <price>,
     "takeProfit": <price>
   },
-  "overallStrategy": "Brief description of current strategy",
+  "overallStrategy": "Brief summary",
   "marketOutlook": "bullish" | "bearish" | "neutral",
   "confidence": 0.0-1.0,
-  "nextCheckRecommendation": "What to look for in the next check"
+  "nextCheckRecommendation": "What to watch"
 }`;
 
     try {

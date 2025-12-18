@@ -1,135 +1,164 @@
 import prisma from '../../../lib/db';
+import { BinanceClient } from '../../../lib/binance';
+import { analyzeIndicators } from '../../../lib/indicators';
+import { initializeGemini, generateAutoTradingDecision } from '../../../lib/gemini';
 
 export default async function handler(req, res) {
-    // Only allow POST requests (Vercel Cron uses POST or GET, typically GET but good to be explicit/standard)
-    // Vercel Cron specifically sends GET requests by default unless configured, but let's support both or just GET.
-    // However, for security, we should check for a secret key if not using Vercel's built-in protections.
-    // For Vercel Cron, the request comes with specific headers.
-
-    // Check Authorization header (Optional: set CRON_SECRET in env for security)
     const authHeader = req.headers.authorization;
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         console.warn('Unauthorized cron attempt');
         return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    console.log('Cron job triggered. Starting analysis cycle...');
+    console.log('Cron Portfolio Cycle Started...');
 
     try {
-        // 1. Check if global bot is running
-        const state = await prisma.botState.findUnique({
-            where: { id: 'global' }
+        // 1. Get Bot State
+        const state = await prisma.botState.findUnique({ where: { id: 'global' } });
+        if (!state?.isRunning) return res.status(200).json({ success: true, message: 'Bot stopped' });
+
+        const client = new BinanceClient(process.env.BINANCE_API_KEY, process.env.BINANCE_SECRET_KEY);
+        initializeGemini(process.env.GEMINI_API_KEY);
+
+        // 2. Fetch Portfolio Status (Balances)
+        const accountInfo = await client.getAccountInfo();
+        const balances = accountInfo.balances
+            .map(b => ({
+                asset: b.asset,
+                free: parseFloat(b.free),
+                locked: parseFloat(b.locked),
+                total: parseFloat(b.free) + parseFloat(b.locked)
+            }))
+            .filter(b => b.total > 0.00001); // Filter out dust
+
+        // Identify "Open Positions" relative to our target symbol (e.g., BTC for BTCUSDT)
+        const baseAsset = state.symbol.replace('USDT', '');
+        const currentPosition = balances.find(b => b.asset === baseAsset);
+
+        const openPositions = currentPosition ? [{
+            symbol: state.symbol,
+            asset: baseAsset,
+            quantity: currentPosition.total,
+            side: 'BUY', // In spot, holding means we bought
+            timeOpen: 'Synced from wallet'
+        }] : [];
+
+        // 3. Fetch Market Data & Indicators
+        const candles = await client.getKlines(state.symbol, '1h', 100);
+        const ticker = await client.get24hTicker(state.symbol);
+        const analysis = analyzeIndicators(candles);
+
+        const marketData = {
+            symbol: state.symbol,
+            currentPrice: parseFloat(ticker.lastPrice),
+            priceChangePercent: parseFloat(ticker.priceChangePercent),
+            highPrice: parseFloat(ticker.highPrice),
+            lowPrice: parseFloat(ticker.lowPrice),
+            volume: parseFloat(ticker.volume),
+        };
+
+        // 4. Fetch Recent Trade History
+        const tradeHistory = await prisma.trade.findMany({
+            where: { symbol: state.symbol },
+            orderBy: { time: 'desc' },
+            take: 10
         });
 
-        if (!state?.isRunning) {
-            return res.status(200).json({ success: true, message: 'Bot is stopped' });
-        }
+        // 5. Ask Gemini for Portfolio Decision
+        console.log(`Asking Gemini for decision on ${state.symbol} with ${openPositions.length} positions...`);
+        const decision = await generateAutoTradingDecision(
+            marketData,
+            analysis.indicators,
+            candles,
+            openPositions,
+            tradeHistory
+        );
 
-        // 2. Trigger Analysis
-        const protocol = req.headers['x-forwarded-proto'] || 'http';
-        const host = req.headers.host;
-        const analyzeUrl = `${protocol}://${host}/api/trading/analyze`;
+        // 6. Execute Decisions
+        const logs = [];
 
-        // We call our own analyze endpoint internally
-        // Note: In a real serverless env, direct function calls or shared logic library is better than HTTP loopback 
-        // to avoid timeout loops, but for this architecture it simplifies reusing existing logic.
-        const analyzeRes = await fetch(analyzeUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: state.symbol, interval: '1h' })
-        });
+        // A. Handle Position Actions (CLOSE)
+        for (const action of (decision.positionActions || [])) {
+            if (action.action === 'CLOSE') {
+                const pos = openPositions.find(p => p.asset === action.asset);
+                if (pos && pos.quantity > 0) {
+                    console.log(`Gemini suggests CLOSING ${action.asset}. Executing SELL...`);
+                    const orderRes = await client.placeMarketOrder(state.symbol, 'SELL', pos.quantity);
 
-        const analysisData = await analyzeRes.json();
+                    // Log to DB via execution logic (simplified here)
+                    const avgPrice = parseFloat(orderRes.executedQty) > 0
+                        ? parseFloat(orderRes.cummulativeQuoteQty) / parseFloat(orderRes.executedQty)
+                        : parseFloat(orderRes.price);
 
-        if (!analysisData.success) {
-            await prisma.analysisLog.create({
-                data: {
-                    type: 'error',
-                    message: `Cron Analysis Failed: ${analysisData.error}`,
-                    data: analysisData
+                    await prisma.trade.create({
+                        data: {
+                            orderId: orderRes.orderId.toString(),
+                            symbol: state.symbol,
+                            side: 'SELL',
+                            price: avgPrice,
+                            quantity: parseFloat(orderRes.executedQty),
+                            quoteQty: parseFloat(orderRes.cummulativeQuoteQty),
+                            status: 'FILLED',
+                            commission: 0,
+                            commissionAsset: 'USDT'
+                        }
+                    });
+                    logs.push(`Closed ${action.asset} position: ${action.reason}`);
                 }
-            });
-            throw new Error(analysisData.error);
+            }
         }
 
-        const decision = analysisData.data.decision;
+        // B. Handle New Orders
+        if (decision.newOrder?.shouldOpen && decision.confidence > 0.75) {
+            const side = decision.newOrder.side;
+            const qty = decision.newOrder.quantity || 0.001;
 
-        // 3. Log Decision
+            // Check if we already have a position to avoid double buy
+            const canTrade = side === 'BUY' ? openPositions.length === 0 : true;
+
+            if (canTrade) {
+                console.log(`Executing new ${side} order for ${state.symbol}...`);
+                const orderRes = await client.placeMarketOrder(state.symbol, side, qty);
+
+                const avgPrice = parseFloat(orderRes.executedQty) > 0
+                    ? parseFloat(orderRes.cummulativeQuoteQty) / parseFloat(orderRes.executedQty)
+                    : parseFloat(orderRes.price);
+
+                await prisma.trade.create({
+                    data: {
+                        orderId: orderRes.orderId.toString(),
+                        symbol: state.symbol,
+                        side: side,
+                        price: avgPrice,
+                        quantity: parseFloat(orderRes.executedQty),
+                        quoteQty: parseFloat(orderRes.cummulativeQuoteQty),
+                        status: 'FILLED',
+                        commission: 0,
+                        commissionAsset: 'USDT'
+                    }
+                });
+                logs.push(`Opened new ${side} order: ${decision.newOrder.reason}`);
+            }
+        }
+
+        // 7. Final Logging
         await prisma.analysisLog.create({
             data: {
                 type: 'decision',
-                message: `Cron: ${decision.action} (${(decision.confidence * 100).toFixed(0)}%) - ${decision.reason || decision.reasoning}`,
+                message: `Portfolio Decision: ${decision.overallStrategy}`,
                 marketOutlook: decision.marketOutlook,
                 confidence: decision.confidence,
-                data: decision
-            }
-        });
-
-        // 4. Auto-Execute Trade if criteria met
-        if (decision.action !== 'HOLD' && decision.confidence > 0.75) {
-            // Check current balances to prevent over-trading
-            const balanceUrl = `${protocol}://${host}/api/account/balance`;
-            const balanceRes = await fetch(balanceUrl);
-            const balanceData = await balanceRes.json();
-            const balances = balanceData.data?.balances || [];
-
-            const baseAsset = state.symbol.replace('USDT', '');
-            const baseBalance = balances.find(b => b.asset === baseAsset)?.total || 0;
-            const usdtBalance = balances.find(b => b.asset === 'USDT')?.total || 0;
-
-            let shouldTrade = false;
-            if (decision.action === 'BUY' && baseBalance < 0.0001 && usdtBalance > 10) {
-                // Only BUY if we don't already have a position and have enough USDT
-                shouldTrade = true;
-            } else if (decision.action === 'SELL' && baseBalance >= 0.001) {
-                // Only SELL if we have enough of the asset
-                shouldTrade = true;
-            }
-
-            if (shouldTrade) {
-                // Execute
-                const executeUrl = `${protocol}://${host}/api/trading/execute`;
-                const tradeRes = await fetch(executeUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        symbol: state.symbol,
-                        side: decision.action,
-                        quantity: 0.001, // Fixed size
-                    })
-                });
-
-                const tradeData = await tradeRes.json();
-
-                if (tradeData.success) {
-                    await prisma.analysisLog.create({
-                        data: {
-                            type: 'trade',
-                            message: `Auto-Executed ${decision.action} at $${tradeData.data.price}`,
-                            data: tradeData
-                        }
-                    });
-                } else {
-                    await prisma.analysisLog.create({
-                        data: {
-                            type: 'error',
-                            message: `Trade Execution Failed: ${tradeData.error}`,
-                            data: tradeData
-                        }
-                    });
+                data: {
+                    ...decision,
+                    executionLogs: logs
                 }
-            } else {
-                console.log(`Skipping ${decision.action}: balance constraints not met`, { baseBalance, usdtBalance });
             }
-        }
-
-        res.status(200).json({ success: true, decision });
-    } catch (error) {
-        console.error('Cron job error details:', {
-            message: error.message,
-            stack: error.stack,
-            code: error.code
         });
+
+        res.status(200).json({ success: true, decision, logs });
+
+    } catch (error) {
+        console.error('Cron Portfolio Error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 }
