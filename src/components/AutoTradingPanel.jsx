@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 
-export default function AutoTradingPanel({ symbol }) {
+export default function AutoTradingPanel({ symbol, onRefresh }) {
     const [isRunning, setIsRunning] = useState(false);
     const [autoState, setAutoState] = useState(null);
     const [lastDecision, setLastDecision] = useState(null);
@@ -43,6 +43,7 @@ export default function AutoTradingPanel({ symbol }) {
                 setAutoState(data.data.state);
                 setLastDecision(data.data.decision);
                 setCountdown(CHECK_INTERVAL / 1000); // Reset countdown
+                if (onRefresh) onRefresh();
             }
         } catch (error) {
             console.error('Auto-trading check failed:', error);
@@ -78,6 +79,8 @@ export default function AutoTradingPanel({ symbol }) {
                 countdownRef.current = setInterval(() => {
                     setCountdown(prev => Math.max(0, prev - 1));
                 }, COUNTDOWN_UPDATE);
+
+                if (onRefresh) onRefresh();
             }
         } catch (error) {
             console.error('Failed to start auto-trading:', error);
@@ -106,6 +109,7 @@ export default function AutoTradingPanel({ symbol }) {
                 if (intervalRef.current) clearInterval(intervalRef.current);
                 if (countdownRef.current) clearInterval(countdownRef.current);
                 setCountdown(0);
+                if (onRefresh) onRefresh();
             }
         } catch (error) {
             console.error('Failed to stop auto-trading:', error);
@@ -283,8 +287,8 @@ export default function AutoTradingPanel({ symbol }) {
                                 <div key={i} className="py-2.5 flex gap-3 text-xs">
                                     <span className="text-gray-400 font-mono whitespace-nowrap">{format(new Date(log.time), 'HH:mm:ss')}</span>
                                     <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${log.type === 'trade' ? 'bg-green-500' :
-                                            log.type === 'error' ? 'bg-red-500' :
-                                                log.type === 'decision' ? 'bg-blue-500' : 'bg-gray-300'
+                                        log.type === 'error' ? 'bg-red-500' :
+                                            log.type === 'decision' ? 'bg-blue-500' : 'bg-gray-300'
                                         }`}></div>
                                     <span className="text-gray-700 leading-snug">{log.message}</span>
                                 </div>

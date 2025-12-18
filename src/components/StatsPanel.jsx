@@ -36,10 +36,12 @@ export default function StatsPanel({ stats }) {
                     <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Status</span>
                     <div className="flex items-center gap-1.5">
                         <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            {isRunning && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>}
+                            <span className={`relative inline-flex rounded-full h-2 w-2 ${isRunning ? 'bg-green-500' : 'bg-gray-300'}`}></span>
                         </span>
-                        <span className="text-sm font-semibold text-green-700">Active</span>
+                        <span className={`text-sm font-semibold ${isRunning ? 'text-green-700' : 'text-gray-500'}`}>
+                            {isRunning ? 'Active' : 'Standby'}
+                        </span>
                     </div>
                 </div>
             </div>

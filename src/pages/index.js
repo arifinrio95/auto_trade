@@ -144,23 +144,46 @@ export default function Home() {
         setMarketData(null);
     };
 
+    // Fetch auto-trading status & stats
+    const fetchAutoState = useCallback(async () => {
+        try {
+            const res = await fetch('/api/trading/auto');
+            const data = await res.json();
+            if (data.success) {
+                setStats({
+                    isRunning: data.data.isRunning,
+                    totalPnL: data.data.stats.totalPnl,
+                    winRate: data.data.stats.winRate,
+                    totalTrades: data.data.stats.tradesExecuted,
+                });
+                setDecision(data.data.lastDecision);
+            }
+        } catch (error) {
+            console.error('Failed to fetch auto-trading status:', error);
+        }
+    }, []);
+
     // Initial load and polling
     useEffect(() => {
         fetchMarketData();
         fetchBalance();
         fetchTrades();
+        fetchAutoState();
 
         // Refresh market data every 10 seconds
         const marketInterval = setInterval(fetchMarketData, 10000);
 
-        // Refresh balance every 30 seconds
-        const balanceInterval = setInterval(fetchBalance, 30000);
+        // Refresh balance and auto stats every 30 seconds
+        const balanceInterval = setInterval(() => {
+            fetchBalance();
+            fetchAutoState();
+        }, 30000);
 
         return () => {
             clearInterval(marketInterval);
             clearInterval(balanceInterval);
         };
-    }, [fetchMarketData, fetchBalance, fetchTrades]);
+    }, [fetchMarketData, fetchBalance, fetchTrades, fetchAutoState]);
 
     return (
         <div className="min-h-screen">
@@ -183,7 +206,7 @@ export default function Home() {
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Stats Overview */}
                 <div className="mb-8">
-                    <StatsPanel stats={stats} />
+                    <StatsPanel stats={stats} isRunning={stats.isRunning} />
                 </div>
 
                 {/* Main Grid */}
@@ -228,7 +251,14 @@ export default function Home() {
                         {/* Trading Panels */}
                         <div className="space-y-8">
                             {/* Auto Pilot */}
-                            <AutoTradingPanel symbol={symbol} />
+                            <AutoTradingPanel
+                                symbol={symbol}
+                                onRefresh={() => {
+                                    fetchAutoState();
+                                    fetchTrades();
+                                    fetchBalance();
+                                }}
+                            />
                         </div>
                     </div>
                 </div>

@@ -1,4 +1,5 @@
 import { BinanceClient } from '../../../lib/binance';
+import prisma from '../../../lib/db';
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') {
@@ -13,22 +14,44 @@ export default async function handler(req, res) {
             process.env.BINANCE_SECRET_KEY
         );
 
-        const trades = await client.getMyTrades(symbol, parseInt(limit));
+        // 1. Fetch from Binance
+        const binanceTrades = await client.getMyTrades(symbol, parseInt(limit));
 
-        // Format trades with P&L calculation
-        const formattedTrades = trades.map((trade, idx) => ({
+        // 2. Sync to Database (Upsert)
+        await Promise.all(binanceTrades.map(trade =>
+            prisma.trade.upsert({
+                where: { orderId: trade.orderId.toString() },
+                update: {
+                    status: 'FILLED', // Historical trades are always filled
+                },
+                create: {
+                    orderId: trade.orderId.toString(),
+                    symbol: trade.symbol,
+                    side: trade.isBuyer ? 'BUY' : 'SELL',
+                    price: parseFloat(trade.price),
+                    quantity: parseFloat(trade.qty),
+                    quoteQty: parseFloat(trade.quoteQty),
+                    commission: parseFloat(trade.commission),
+                    commissionAsset: trade.commissionAsset,
+                    time: new Date(trade.time),
+                    status: 'FILLED'
+                }
+            })
+        ));
+
+        // 3. Fetch final history from DB (Source of Truth)
+        const dbTrades = await prisma.trade.findMany({
+            where: { symbol },
+            orderBy: { time: 'desc' },
+            take: 100
+        });
+
+        // 4. Format for UI
+        const formattedTrades = dbTrades.map(trade => ({
+            ...trade,
             id: trade.id,
-            orderId: trade.orderId,
-            symbol: trade.symbol,
-            side: trade.isBuyer ? 'BUY' : 'SELL',
-            price: parseFloat(trade.price),
-            quantity: parseFloat(trade.qty),
-            quoteQty: parseFloat(trade.quoteQty),
-            commission: parseFloat(trade.commission),
-            commissionAsset: trade.commissionAsset,
-            time: new Date(trade.time).toISOString(),
-            timestamp: trade.time,
-            isMaker: trade.isMaker,
+            time: trade.time.toISOString(),
+            timestamp: trade.time.getTime()
         }));
 
         res.status(200).json({
@@ -36,10 +59,25 @@ export default async function handler(req, res) {
             data: formattedTrades,
         });
     } catch (error) {
-        console.error('Trades error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message || 'Failed to fetch trades',
-        });
+        console.error('Trades sync error:', error);
+
+        // Fallback: If DB fails but Binance works, or vice-versa
+        try {
+            const dbTrades = await prisma.trade.findMany({
+                where: { symbol },
+                orderBy: { time: 'desc' },
+                take: 100
+            });
+            return res.status(200).json({
+                success: true,
+                data: dbTrades.map(t => ({ ...t, time: t.time.toISOString() })),
+                warning: 'Sync failed, showing cached data'
+            });
+        } catch (dbError) {
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to sync trades',
+            });
+        }
     }
 }

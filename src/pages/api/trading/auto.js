@@ -24,9 +24,49 @@ export default async function handler(req, res) {
                 orderBy: { time: 'desc' },
             });
 
+            const allTrades = await prisma.trade.findMany({
+                orderBy: { time: 'asc' }
+            });
+
+            // Calculate Stats from DB
+            let totalPnl = 0;
+            let winCount = 0;
+            let lossCount = 0;
+            let inventory = [];
+
+            allTrades.forEach(trade => {
+                if (trade.side === 'BUY') {
+                    inventory.push({ price: trade.price, qty: trade.quantity });
+                } else {
+                    let sellQty = trade.quantity;
+                    let sellValue = trade.quoteQty;
+                    let costBasis = 0;
+
+                    // Simple FIFO cost basis
+                    while (sellQty > 0 && inventory.length > 0) {
+                        let batch = inventory[0];
+                        let takeQty = Math.min(sellQty, batch.qty);
+                        costBasis += takeQty * batch.price;
+                        batch.qty -= takeQty;
+                        sellQty -= takeQty;
+                        if (batch.qty <= 0) inventory.shift();
+                    }
+
+                    const pnl = sellValue - costBasis;
+                    totalPnl += pnl;
+                    if (pnl > 0) winCount++;
+                    else if (pnl < 0) lossCount++;
+                }
+            });
+
+            const totalTrades = allTrades.length;
+            const winRate = totalTrades > 0 ? (winCount / Math.max(1, winCount + lossCount)) * 100 : 0;
+
             const stats = {
                 totalChecks: await prisma.analysisLog.count({ where: { type: 'decision' } }),
-                tradesExecuted: await prisma.trade.count(),
+                tradesExecuted: totalTrades,
+                totalPnl: totalPnl,
+                winRate: winRate
             };
 
             return res.status(200).json({
